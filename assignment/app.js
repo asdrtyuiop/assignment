@@ -1,24 +1,69 @@
-require('./models/db');
-
 const express = require('express');
-const path = require('path');
-const exphbs = require('express-handlebars');
-const bodyparser = require('body-parser');
+const expressLayouts = require('express-ejs-layouts');
+const mongoose = require('mongoose');
+const passport = require('passport');
+const flash = require('connect-flash');
+const session = require('express-session');
 
+const app = express();
 
-const controller = require('./controllers/controller');
+// Passport Config
+require('./config/passport')(passport);
 
-var app = express();
-app.use(bodyparser.urlencoded({
-    extended: true
-}));
-app.use(bodyparser.json());
-app.set('views', path.join(__dirname, '/views/'));
-app.engine('hbs', exphbs({ extname: 'hbs', defaultLayout: 'mainlayout', layoutsDir: __dirname + '/views/layouts/' }));
-app.set('view engine', 'hbs');
+// DB Config
+const db = require('./config/keys').mongoURI;
 
-app.listen(3000, () => {
-    console.log('Express server at port:3000');
-})
+// Connect to MongoDB
+mongoose
+  .connect(
+    db,
+    { useNewUrlParser: true }
+  )
+  .then(() => console.log('MongoDB Connected'))
+  .catch(err => console.log('connection error'+err));
 
-app.use('/personal', controller);
+// EJS
+app.use(expressLayouts);
+app.set('view engine', 'ejs');
+
+// Express body parser
+app.use(express.urlencoded({ extended: true }));
+
+// Express session
+app.use(
+  session({
+    secret: 'secret',
+    resave: true,
+    saveUninitialized: true
+  })
+);
+
+// Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Connect flash
+app.use(flash());
+
+// Global variables
+app.use(function(req, res, next) {
+  res.locals.success_msg = req.flash('success_msg');
+  res.locals.error_msg = req.flash('error_msg');
+  res.locals.error = req.flash('error');
+  next();
+});
+
+// Routes
+app.use('/', require('./routes/index.js'));
+app.use('/users', require('./routes/users.js'));
+app.get('/test', function(req, res) {
+  res.sendFile(__dirname + '/views/index.html');
+});
+
+// Require body-parser to be able to send POST data
+var bodyParser = require("body-parser");
+app.use(bodyParser.urlencoded( {extended: true} ));
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, console.log(`Server started on port ${PORT}`));
